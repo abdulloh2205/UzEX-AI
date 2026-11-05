@@ -81,13 +81,23 @@ class AgentOrchestrator:
         # Step 3: Query Execution (Deterministic)
         result: QueryResult = QueryExecutor.execute_params(params)
 
-        # Step 4: Bilingual Response Generation
+        # Step 4: Retrieve conversation history for context if user_id is provided
+        history = []
+        if user_id:
+            try:
+                from src.bot.user_preferences import user_preferences_repo
+                history = user_preferences_repo.get_history(user_id=user_id, limit=6)
+            except Exception as e:
+                logger.debug(f"Could not load conversation history: {e}")
+
+        # Step 5: Bilingual Response Generation
         response_text = await ResponseBuilder.build(
             user_question=cleaned_input,
             params=params,
             result=result,
             lang=lang,
-            use_llm=use_llm
+            use_llm=use_llm,
+            history=history
         )
 
         elapsed_ms = (time.perf_counter() - start_t) * 1000.0

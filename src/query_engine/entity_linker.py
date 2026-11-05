@@ -268,7 +268,7 @@ class EntityLinker:
             "года", "году", "годе", "годов", "было", "была", "были", "активные",
             "действующие", "лидер", "лидеры", "топ", "текст", "сообщение", "слово",
             "вопрос", "неизвестный", "бессмысленный", "тест", "gap", "soz", "matn", "savol",
-            "iltimos", "salom", "qanday", "nima", "qanaqa"
+            "iltimos", "salom", "qanday", "nima", "qanaqa", "спот", "spot"
         }
         for w in words:
             w_clean = w.replace("'", "")

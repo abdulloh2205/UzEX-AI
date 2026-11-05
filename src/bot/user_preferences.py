@@ -40,6 +40,22 @@ class UserPreferencesRepository:
                 );
                 """
             )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS conversation_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    role TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_history_user_id ON conversation_history(user_id, id);
+                """
+            )
             conn.commit()
         except Exception as e:
             logger.error(f"Failed to initialize user preferences database: {e}")
@@ -105,6 +121,86 @@ class UserPreferencesRepository:
     def clear_cache(self) -> None:
         """Clears in-memory cache (primarily for tests)."""
         self._cache.clear()
+
+    def add_message(self, user_id: int, role: str, content: str, max_history: int = 10) -> None:
+        """Stores a message (role: 'user' or 'model') in conversation history."""
+        if not user_id or not content.strip():
+            return
+
+        conn = None
+        try:
+            conn = sqlite3.connect(self.db_path)
+            conn.execute(
+                """
+                INSERT INTO conversation_history (user_id, role, content)
+                VALUES (?, ?, ?);
+                """,
+                (user_id, role, content.strip())
+            )
+            # Prune old messages exceeding max_history
+            conn.execute(
+                """
+                DELETE FROM conversation_history
+                WHERE id IN (
+                    SELECT id FROM conversation_history
+                    WHERE user_id = ?
+                    ORDER BY id DESC
+                    LIMIT -1 OFFSET ?
+                );
+                """,
+                (user_id, max_history)
+            )
+            conn.commit()
+        except Exception as e:
+            logger.error(f"Error saving conversation turn for {user_id}: {e}")
+        finally:
+            if conn:
+                conn.close()
+
+    def get_history(self, user_id: int, limit: int = 6) -> list[dict]:
+        """Returns the most recent conversation history for user_id in chronological order."""
+        if not user_id:
+            return []
+
+        conn = None
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT role, content FROM (
+                    SELECT id, role, content FROM conversation_history
+                    WHERE user_id = ?
+                    ORDER BY id DESC
+                    LIMIT ?
+                ) ORDER BY id ASC;
+                """,
+                (user_id, limit)
+            )
+            rows = cursor.fetchall()
+            return [{"role": r[0], "content": r[1]} for r in rows]
+        except Exception as e:
+            logger.error(f"Error fetching conversation history for {user_id}: {e}")
+            return []
+        finally:
+            if conn:
+                conn.close()
+
+    def clear_history(self, user_id: int) -> None:
+        """Clears conversation history for user_id."""
+        if not user_id:
+            return
+
+        conn = None
+        try:
+            conn = sqlite3.connect(self.db_path)
+            conn.execute("DELETE FROM conversation_history WHERE user_id = ?;", (user_id,))
+            conn.commit()
+        except Exception as e:
+            logger.error(f"Error clearing conversation history for {user_id}: {e}")
+        finally:
+            if conn:
+                conn.close()
 
 
 # Global default instance

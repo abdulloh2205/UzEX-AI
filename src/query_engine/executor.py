@@ -66,7 +66,13 @@ class QueryExecutor:
                 out_of_dataset_reason=out_reason
             )
 
-        if params.intent in {IntentType.EXCHANGE_INFO, IntentType.UNKNOWN, IntentType.OUT_OF_SCOPE}:
+        if params.intent in {
+            IntentType.EXCHANGE_INFO,
+            IntentType.GENERAL_CHAT,
+            IntentType.GENERAL_KNOWLEDGE,
+            IntentType.UNKNOWN,
+            IntentType.OUT_OF_SCOPE,
+        }:
             # Do not run SQL queries for general conversational questions or unknown inputs
             return QueryResult(
                 success=True,

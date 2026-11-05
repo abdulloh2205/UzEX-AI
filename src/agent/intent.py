@@ -10,13 +10,20 @@ from src.query_engine.models import IntentType, QueryParams, StatusPolicy, Volum
 logger = logging.getLogger(__name__)
 
 INTENT_EXTRACTION_PROMPT = """
-You are an expert AI parser for the UZEX (Uzbek Commodity Exchange) dataset.
-Analyze the user's question in Uzbek or Russian and output ONLY a JSON object conforming to the schema below.
-The dataset covers deals from 2022-01-03 to 2026-10-30.
+You are an expert AI intent router and parser for the UZEX (Uzbek Commodity Exchange) conversational assistant.
+Analyze the user's message in Uzbek or Russian and classify it into one of the following domains:
+
+1. "general_chat": Greetings, gratitude, saying goodbye, small talk, chit-chat ("Привет", "Salom", "Rahmat", "Спасибо", "Как дела?", "Xayr").
+2. "general_knowledge": Broad questions about economics, trade, finance, trading terms NOT specific to UZEX ("Что такое спот?", "Инкотермс nima?", "Фьючерс ва форвард фарқи").
+3. "exchange_info": Questions about UZEX exchange itself, its structure, commodities, rules, or bot capabilities ("UzEx o'zi nima?", "Что такое UZEX?", "Что ты умеешь?", "Qanday tovarlar sotiladi?").
+4. "aggregation" | "ranking" | "price_inquiry" | "deal_lookup" | "contract_lookup" | "participant_lookup" | "broker_lookup" | "usd_rate_lookup" | "status_breakdown": Analytical queries about real trade data (2022-01-03 to 2026-10-30).
+5. "mixed": Combined conceptual explanation and analytical query.
+6. "out_of_scope": Specific queries outside 2022-2026 dataset boundary.
+7. "unknown": Ambiguous, completely unrecognizable query or nonexistent items.
 
 JSON Schema:
 {
-  "intent": "aggregation" | "ranking" | "price_inquiry" | "deal_lookup" | "contract_lookup" | "participant_lookup" | "broker_lookup" | "usd_rate_lookup" | "status_breakdown" | "exchange_info" | "out_of_scope" | "unknown",
+  "intent": "general_chat" | "general_knowledge" | "exchange_info" | "aggregation" | "ranking" | "price_inquiry" | "deal_lookup" | "contract_lookup" | "participant_lookup" | "broker_lookup" | "usd_rate_lookup" | "status_breakdown" | "mixed" | "out_of_scope" | "unknown",
   "product": string or null (in Russian canonical form, e.g. "бензин", "цемент", "пшеница", "катод медный"),
   "year": integer or null (e.g. 2022, 2023, 2024, 2025, 2026),
   "date_from": "YYYY-MM-DD" or null,
@@ -25,7 +32,7 @@ JSON Schema:
   "broker_code": string or null (e.g. "BK001"),
   "deal_id": integer or null,
   "contract_id": string or null,
-  "deal_status": string or null (e.g. "Исполнен", "Аннулирован(Не оплачен)"),
+  "deal_status": string or null,
   "contract_type": "Внутренний" | "Экспортный" | null,
   "metric": "amount_uzs" | "volume" | "count" | "price",
   "ranking_entity": "product" | "seller" | "buyer" | "broker" | "region" | null,
@@ -233,13 +240,38 @@ class IntentParser:
                 language=lang
             )
 
-        # Exchange Info / FAQ / Greetings / Help
+        # 1. General Chat (Greetings, gratitude, farewells, small talk)
+        chat_keywords = [
+            "привет", "здравствуй", "добрый день", "доброе утро", "добрый вечер", "хай",
+            "спасибо", "благодарю", "пока", "до свидания", "как дела", "как жизнь",
+            "salom", "assalomu alaykum", "assalom", "hayrli tong", "hayrli kun", "hayrli kech",
+            "rahmat", "katta rahmat", "xayr", "ishlar qalay", "yaxshimisiz", "tuzukmisiz"
+        ]
+        is_general_chat = any(w in lower for w in chat_keywords)
+        if is_general_chat and not (year or product or inn or broker_code or deal_id or contract_id):
+            return QueryParams(
+                intent=IntentType.GENERAL_CHAT,
+                language=lang
+            )
+
+        # 2. General Knowledge (Financial, economic, trading concepts without specific UZEX entity)
+        knowledge_keywords = [
+            "спот", "spot", "фьючерс", "форвард", "fyuchers", "forvard", "инкотермс", "incoterms",
+            "аккредитив", "akkreditiv", "котировка", "kotirovka", "депозит", "хеджирование", "hedjirlash"
+        ]
+        is_knowledge = any(w in lower for w in knowledge_keywords) and any(w in lower for w in ["что такое", "что это", "объясни", "nima", "qanday", "tushuncha", "farqi", "farqi nima"])
+        if is_knowledge and not (year or product or inn or broker_code or deal_id or contract_id):
+            return QueryParams(
+                intent=IntentType.GENERAL_KNOWLEDGE,
+                language=lang
+            )
+
+        # 3. Exchange Info / FAQ / Help / Capabilities
         exchange_info_keywords = [
             "uzex", "узекс", "биржа", "birja", "o'zi nima", "ozi nima", "nima u", "nima bu",
-            "что такое", "что это", "о бирже", "расскажи о", "как работает", "qanday ishlaydi",
-            "vazifasi", "haqida ma'lumot", "haqida malumot", "привет", "здравствуй", "salom",
-            "assalomu alaykum", "assalom", "что ты умеешь", "nima qila olasan", "imkoniyat",
-            "yordam", "помощь", "справка", "imkoniyatlaring"
+            "что такое узекс", "что такое биржа", "что это за биржа", "о бирже", "расскажи о",
+            "как работает", "qanday ishlaydi", "vazifasi", "haqida ma'lumot", "haqida malumot",
+            "что ты умеешь", "nima qila olasan", "imkoniyat", "yordam", "помощь", "справка", "imkoniyatlaring"
         ]
         is_exchange_info = any(w in lower for w in exchange_info_keywords)
         if is_exchange_info and not (year or product or inn or broker_code or deal_id or contract_id):
@@ -293,6 +325,8 @@ class IntentParser:
             IntentType.PARTICIPANT_LOOKUP,
             IntentType.BROKER_LOOKUP,
             IntentType.EXCHANGE_INFO,
+            IntentType.GENERAL_CHAT,
+            IntentType.GENERAL_KNOWLEDGE,
         }:
             return params
 

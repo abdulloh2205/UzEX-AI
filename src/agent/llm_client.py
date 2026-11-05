@@ -37,6 +37,65 @@ class GeminiClient:
                 self._client = None
         return self._client
 
+    async def generate_chat_response(
+        self,
+        messages: List[Dict[str, str]],
+        system_instruction: Optional[str] = None,
+        temperature: Optional[float] = None,
+        timeout_seconds: int = 8,
+    ) -> Optional[str]:
+        """
+        Generates chat completion with full conversation history using google-genai SDK.
+        Each message dict: {"role": "user" | "model", "content": str}.
+        """
+        if not self.is_configured():
+            return None
+
+        client = self._get_client()
+        if not client:
+            return None
+
+        from google.genai import types
+
+        config = types.GenerateContentConfig(
+            temperature=self.temperature if temperature is None else temperature,
+            system_instruction=system_instruction if system_instruction else None,
+        )
+
+        contents = []
+        for m in messages:
+            role = "model" if m.get("role") in ("model", "assistant") else "user"
+            text_part = m.get("content", "").strip()
+            if text_part:
+                contents.append(
+                    types.Content(
+                        role=role,
+                        parts=[types.Part.from_text(text=text_part)]
+                    )
+                )
+
+        if not contents:
+            return None
+
+        try:
+            response = await asyncio.wait_for(
+                client.aio.models.generate_content(
+                    model=self.model,
+                    contents=contents,
+                    config=config,
+                ),
+                timeout=timeout_seconds,
+            )
+            if response and response.text:
+                return response.text.strip()
+            return None
+        except asyncio.TimeoutError:
+            logger.warning(f"Gemini chat timed out after {timeout_seconds}s. Using fallback.")
+            return None
+        except Exception as e:
+            logger.warning(f"Gemini chat failed ({e}). Using fallback.")
+            return None
+
     async def generate_text(
         self,
         prompt: str,

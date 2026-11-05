@@ -146,6 +146,14 @@ async def handle_text_query(message: Message) -> None:
             use_llm=True
         )
 
+        # Record turns in conversation history for multi-turn conversational context
+        if user_id:
+            try:
+                user_preferences_repo.add_message(user_id=user_id, role="user", content=raw_text)
+                user_preferences_repo.add_message(user_id=user_id, role="model", content=response.text)
+            except Exception as e:
+                logger.debug(f"Failed to record conversation history: {e}")
+
         # If user had no preference set, auto-record language detected by Agent Core
         if not saved_lang and response.language in ("ru", "uz"):
             user_preferences_repo.set_language(user_id, response.language)

@@ -136,11 +136,48 @@ class TestRoutingAndZeroHallucination(unittest.TestCase):
         self.assertNotIn("466 281", resp.text)
 
     def test_greeting_russian(self):
-        """«Привет» не должен запускать SQL ко всей базе сделок."""
+        """«Привет» не должен запускать SQL ко всей базе сделок и классифицируется как GENERAL_CHAT."""
+        params = IntentParser.parse_deterministic("Привет", "ru")
+        self.assertEqual(params.intent, IntentType.GENERAL_CHAT)
         resp = AgentOrchestrator.process_question_sync("Привет")
         self.assertEqual(resp.language, "ru")
         self.assertIsNone(resp.sql_executed)
         self.assertIn("UZEX", resp.text)
+
+    def test_greeting_uzbek(self):
+        """«Salom» классифицируется как GENERAL_CHAT и не выполняет SQL."""
+        params = IntentParser.parse_deterministic("Salom", "uz")
+        self.assertEqual(params.intent, IntentType.GENERAL_CHAT)
+        resp = AgentOrchestrator.process_question_sync("Salom")
+        self.assertEqual(resp.language, "uz")
+        self.assertIsNone(resp.sql_executed)
+        self.assertIn("Assalomu alaykum", resp.text)
+
+    def test_general_knowledge_concept(self):
+        """«Что такое спот?» классифицируется как GENERAL_KNOWLEDGE и не исполняет SQL."""
+        params = IntentParser.parse_deterministic("Что такое спот?", "ru")
+        self.assertEqual(params.intent, IntentType.GENERAL_KNOWLEDGE)
+        resp = AgentOrchestrator.process_question_sync("Что такое спот?")
+        self.assertIsNone(resp.sql_executed)
+        self.assertIn("понятие", resp.text)
+
+    def test_conversation_history_persistence(self):
+        """История диалога сохраняется и извлекается в правильном порядке."""
+        from src.bot.user_preferences import user_preferences_repo
+        test_uid = 9999991
+        user_preferences_repo.clear_history(test_uid)
+
+        user_preferences_repo.add_message(test_uid, "user", "Привет!")
+        user_preferences_repo.add_message(test_uid, "model", "Здравствуйте! Чем могу помочь?")
+        user_preferences_repo.add_message(test_uid, "user", "Какая цена бензина в 2025 году?")
+
+        history = user_preferences_repo.get_history(test_uid, limit=4)
+        self.assertEqual(len(history), 3)
+        self.assertEqual(history[0]["role"], "user")
+        self.assertEqual(history[0]["content"], "Привет!")
+        self.assertEqual(history[1]["role"], "model")
+        self.assertEqual(history[2]["role"], "user")
+        user_preferences_repo.clear_history(test_uid)
 
     def test_capabilities_question(self):
         """«Что ты умеешь?» должен возвращать перечень возможностей аналитического помощника."""

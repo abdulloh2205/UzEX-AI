@@ -34,7 +34,27 @@ class ResponseBuilder:
                 else "Запрошенные данные находятся за пределами диапазона или охвата датасета UZEX."
             )
 
-        # 2. General Exchange Information / FAQ / Capabilities
+        # 2. General Chat (Greetings, small talk, gratitude)
+        if params.intent == IntentType.GENERAL_CHAT:
+            if lang == "uz":
+                return "Assalomu alaykum! UZEX birja tahlilchisi xizmatingizda. Sizga qanday yordam bera olaman?"
+            else:
+                return "Здравствуйте! Аналитический помощник UZEX к вашим услугам. Чем могу помочь?"
+
+        # 3. General Knowledge (Concepts, definitions)
+        if params.intent == IntentType.GENERAL_KNOWLEDGE:
+            if lang == "uz":
+                return (
+                    "Ushbu iqtisodiy tushuncha bo‘yicha umumiy ma'lumot taqdim etilmoqda. "
+                    "UZEX birjasidagi aniq statistik ma'lumotlar uchun tovar nomi yoki yilni ko‘rsatishingiz mumkin."
+                )
+            else:
+                return (
+                    "Это общее экономическое и торговое понятие. "
+                    "Для получения точной аналитики торгов UZEX укажите конкретный товар или интересующий год."
+                )
+
+        # 4. General Exchange Information / FAQ / Capabilities
         if params.intent == IntentType.EXCHANGE_INFO:
             if lang == "uz":
                 return (
@@ -63,7 +83,7 @@ class ResponseBuilder:
                     "📌 Примеры запросов доступны по команде **/help**."
                 )
 
-        # 3. Unknown / Ambiguous query (Safety fallback — NO SQL aggregation on entire dataset!)
+        # 5. Unknown / Ambiguous query (Safety fallback — NO SQL aggregation on entire dataset!)
         if params.intent == IntentType.UNKNOWN:
             if lang == "uz":
                 return (
@@ -384,46 +404,159 @@ class ResponseBuilder:
         params: QueryParams,
         result: QueryResult,
         lang: Language,
-        use_llm: bool = True
+        use_llm: bool = True,
+        history: Optional[List[Dict[str, str]]] = None,
     ) -> str:
         """
-        Builds response. First generates the deterministic verified fact summary.
-        If LLM is available and use_llm is True, passes the verified summary to LLM for fluent presentation.
-        If LLM is unavailable, disabled, or fails, returns the deterministic response directly.
+        Builds response dynamically.
+        For conversational modes (GENERAL_CHAT, GENERAL_KNOWLEDGE, EXCHANGE_INFO, UNKNOWN):
+            Gemini generates natural, non-repetitive dialogue while respecting UZEX context and Zero-Hallucination rules.
+        For analytical modes (AGGREGATION, RANKING, PRICE_INQUIRY, etc.):
+            SQL-backed verified facts are passed to Gemini for natural analytical presentation.
+        If Gemini is unavailable or disabled, clean deterministic text is returned.
         """
         deterministic_text = cls.build_deterministic(params, result, lang)
 
         if not use_llm or not gemini_client.is_configured():
             return deterministic_text
 
-        # If it's out of bounds, unknown, or pure deterministic fact, deterministic text is already exact
-        if result.is_out_of_dataset or params.intent in {IntentType.UNKNOWN, IntentType.OUT_OF_SCOPE}:
+        # If it's strictly out of bounds of the dataset (e.g. year 2021 or 2030), return exact date bounds
+        if result.is_out_of_dataset or params.intent == IntentType.OUT_OF_SCOPE:
             return deterministic_text
 
-        # Strict Zero-Hallucination Policy Prompt
+        lang_name = "Uzbek (O'zbek tili)" if lang == "uz" else "Russian (Русский язык)"
+
+        # 1. GENERAL_CHAT prompt
+        if params.intent == IntentType.GENERAL_CHAT:
+            system_prompt = (
+                f"You are the conversational AI assistant for UZEX (Uzbek Commodity Exchange).\n"
+                f"Language: Respond naturally and politely in {lang_name}.\n"
+                f"Tone: Helpful, warm, professional, engaging. Avoid rigid canned answers.\n"
+                f"Do NOT fabricate trade statistics in small talk. Offer help with commodity trading analytics if relevant."
+            )
+            chat_messages = list(history or [])
+            chat_messages.append({"role": "user", "content": user_question})
+            try:
+                chat_resp = await gemini_client.generate_chat_response(
+                    messages=chat_messages,
+                    system_instruction=system_prompt,
+                    temperature=0.7,
+                    timeout_seconds=5
+                )
+                if chat_resp and len(chat_resp.strip()) > 3:
+                    return chat_resp.strip()
+            except Exception as e:
+                logger.warning(f"Gemini chat generation failed: {e}")
+            return deterministic_text
+
+        # 2. GENERAL_KNOWLEDGE prompt
+        if params.intent == IntentType.GENERAL_KNOWLEDGE:
+            system_prompt = (
+                f"You are an economics and commodity markets expert assistant for UZEX AI.\n"
+                f"Language: Explain clearly and educationally in {lang_name}.\n"
+                f"Instruction: Explain the requested economic/market concept accurately. "
+                f"Clearly state this is general financial/market knowledge, and not specific internal rules of UZEX. "
+                f"Invite the user to explore real trading data on UZEX if they want."
+            )
+            chat_messages = list(history or [])
+            chat_messages.append({"role": "user", "content": user_question})
+            try:
+                chat_resp = await gemini_client.generate_chat_response(
+                    messages=chat_messages,
+                    system_instruction=system_prompt,
+                    temperature=0.4,
+                    timeout_seconds=5
+                )
+                if chat_resp and len(chat_resp.strip()) > 10:
+                    return chat_resp.strip()
+            except Exception as e:
+                logger.warning(f"Gemini general knowledge failed: {e}")
+            return deterministic_text
+
+        # 3. EXCHANGE_INFO prompt
+        if params.intent == IntentType.EXCHANGE_INFO:
+            verified_uzex_facts = (
+                "Verified Context about UZEX:\n"
+                "- Full Name: Uzbek Commodity Exchange (УзРТСБ / O'zbekiston tovar-xomashyo birjasi).\n"
+                "- Nature: Largest modern commodity exchange platform in Central Asia.\n"
+                "- Key spot commodities traded: petroleum products (gasoline, diesel), cement, wheat/grain, copper cathodes, cotton fiber, mineral fertilizers, sugar, ferrous and non-ferrous metals.\n"
+                "- Trading mechanism: Open, electronic, competitive spot bidding.\n"
+                "- Assistant capabilities: Provides real trade statistics for 2022-2026 (>500,000 real deals), calculates weighted average prices, volume and turnover rankings, and inspects deal/contract specifications.\n"
+                "- Official portal: uzex.uz."
+            )
+            system_prompt = (
+                f"You are the official conversational assistant of the Uzbek Commodity Exchange (UZEX).\n"
+                f"Language: Answer accurately and informatively in {lang_name}.\n"
+                f"ZERO HALLUCINATION POLICY: Base your facts strictly on the verified context below. "
+                f"If asked about internal procedures, regulations, or historical facts not present in the context, honestly state that official information can be verified on uzex.uz or with UZEX support.\n\n"
+                f"{verified_uzex_facts}"
+            )
+            chat_messages = list(history or [])
+            chat_messages.append({"role": "user", "content": user_question})
+            try:
+                chat_resp = await gemini_client.generate_chat_response(
+                    messages=chat_messages,
+                    system_instruction=system_prompt,
+                    temperature=0.3,
+                    timeout_seconds=5
+                )
+                if chat_resp and len(chat_resp.strip()) > 10:
+                    return chat_resp.strip()
+            except Exception as e:
+                logger.warning(f"Gemini exchange info failed: {e}")
+            return deterministic_text
+
+        # 4. UNKNOWN prompt
+        if params.intent == IntentType.UNKNOWN:
+            system_prompt = (
+                f"You are the intelligent assistant for UZEX commodity trading analytics.\n"
+                f"Language: Respond politely and concisely in {lang_name}.\n"
+                f"Situation: The user query is ambiguous, contains nonexistent goods, or does not specify enough parameters to run database analytics.\n"
+                f"Action: Politely ask the user to clarify or rephrase the question. Suggest specifying commodity name (e.g. бензин, цемент, пшеница), trading year (2022-2026), or deal ID. Mention that command /help lists sample queries.\n"
+                f"CRITICAL: Do NOT invent trade volumes or prices."
+            )
+            chat_messages = list(history or [])
+            chat_messages.append({"role": "user", "content": user_question})
+            try:
+                chat_resp = await gemini_client.generate_chat_response(
+                    messages=chat_messages,
+                    system_instruction=system_prompt,
+                    temperature=0.4,
+                    timeout_seconds=5
+                )
+                if chat_resp and len(chat_resp.strip()) > 10:
+                    return chat_resp.strip()
+            except Exception as e:
+                logger.warning(f"Gemini unknown fallback failed: {e}")
+            return deterministic_text
+
+        # 5. ANALYTICS & MIXED prompt (Strict Zero-Hallucination Presentation)
         system_prompt = (
             f"You are the official bilingual AI assistant for the Uzbek Commodity Exchange (UZEX).\n"
-            f"The user asked a question in {'Uzbek' if lang == 'uz' else 'Russian'}.\n"
+            f"Language: Present the analytical findings in {lang_name}.\n"
             f"ZERO HALLUCINATION POLICY (STRICT ENFORCEMENT):\n"
             f"1. You MUST NEVER invent, hallucinate, extrapolate, or approximate any trade numbers, prices, volumes, dates, participants, or market trends.\n"
             f"2. You MUST use ONLY the verified facts provided below. Do not add outside speculation, economic guesses, or fabricated reasons.\n"
             f"3. If the verified facts indicate no data was found or requested metrics are unavailable, state clearly that confirmed data is unavailable in the UZEX registry.\n"
             f"4. Never replace the user's specific inquiry with unrelated general statistics.\n"
-            f"5. Maintain a professional, polite, concise tone in {'Uzbek' if lang == 'uz' else 'Russian'}."
+            f"5. Maintain a professional, articulate tone in {lang_name}."
         )
 
         user_prompt = (
             f"User Question: {user_question}\n\n"
-            f"Verified Facts / Context:\n{deterministic_text}\n\n"
-            f"Respond clearly and concisely in {'Uzbek' if lang == 'uz' else 'Russian'} strictly based on the verified facts above."
+            f"Verified Facts / Query Results:\n{deterministic_text}\n\n"
+            f"Provide a natural, well-formatted response in {lang_name} strictly based on the verified facts above."
         )
 
+        chat_messages = list(history or [])
+        chat_messages.append({"role": "user", "content": user_prompt})
+
         try:
-            gemini_response = await gemini_client.generate_text(
-                prompt=user_prompt,
+            gemini_response = await gemini_client.generate_chat_response(
+                messages=chat_messages,
                 system_instruction=system_prompt,
                 temperature=0.1,
-                timeout_seconds=4
+                timeout_seconds=5
             )
             if gemini_response and len(gemini_response.strip()) > 15:
                 return gemini_response.strip()
