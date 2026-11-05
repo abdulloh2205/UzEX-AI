@@ -132,7 +132,7 @@ class TestRoutingAndZeroHallucination(unittest.TestCase):
         resp = AgentOrchestrator.process_question_sync("Что такое UZEX?")
         self.assertEqual(resp.language, "ru")
         self.assertIsNone(resp.sql_executed)
-        self.assertIn("Узбекская республиканская товарно-сырьевая биржа", resp.text)
+        self.assertIn("товарно-сырьевой биржи (UZEX)", resp.text)
         self.assertNotIn("466 281", resp.text)
 
     def test_greeting_russian(self):

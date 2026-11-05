@@ -37,49 +37,45 @@ class ResponseBuilder:
         # 2. General Chat (Greetings, small talk, gratitude)
         if params.intent == IntentType.GENERAL_CHAT:
             if lang == "uz":
-                return "Assalomu alaykum! UZEX birja tahlilchisi xizmatingizda. Sizga qanday yordam bera olaman?"
+                return "Assalomu alaykum! UZEX birja ma'lumotlari tahlilchisi xizmatingizda. Sizga qanday yordam bera olaman?"
             else:
-                return "Здравствуйте! Аналитический помощник UZEX к вашим услугам. Чем могу помочь?"
+                return "Здравствуйте! AI-ассистент по аналитике биржевых данных UZEX готов помочь. Какой вопрос вас интересует?"
 
         # 3. General Knowledge (Concepts, definitions)
         if params.intent == IntentType.GENERAL_KNOWLEDGE:
             if lang == "uz":
                 return (
-                    "Ushbu iqtisodiy tushuncha bo‘yicha umumiy ma'lumot taqdim etilmoqda. "
-                    "UZEX birjasidagi aniq statistik ma'lumotlar uchun tovar nomi yoki yilni ko‘rsatishingiz mumkin."
+                    "Ushbu iqtisodiy tushuncha bo‘yicha umumiy ma'lumot. "
+                    "Birja ma'lumotlar to‘plami bo‘yicha tahlil uchun tovar nomi yoki yilni ko‘rsatishingiz mumkin."
                 )
             else:
                 return (
-                    "Это общее экономическое и торговое понятие. "
-                    "Для получения точной аналитики торгов UZEX укажите конкретный товар или интересующий год."
+                    "Это общее экономическое понятие. "
+                    "Для аналитики по биржевому набору данных укажите интересующий товар или период (2022–2026)."
                 )
 
-        # 4. General Exchange Information / FAQ / Capabilities
+        # 4. General Exchange Information / Capabilities / Persona
         if params.intent == IntentType.EXCHANGE_INFO:
             if lang == "uz":
                 return (
-                    "🏛 **UZEX (O‘zbekiston tovar-xomashyo birjasi) haqida:**\n\n"
-                    "O‘zbekiston tovar-xomashyo birjasi (UZEX) — Markaziy Osiyodagi eng yirik zamonaviy savdo maydonchasi bo‘lib, "
-                    "paxta, g‘alla, metall, sement, neft mahsulotlari (benzin, dizel) va boshqa strategik tovarlar "
-                    "bo‘yicha ochiq birja savdolarini tashkil etadi.\n\n"
-                    "💡 **Men nima qila olaman?**\n"
-                    "• 2022–2026 yillardagi 500 000+ birja bitimlari bo‘yicha aniq ma'lumot berish;\n"
+                    "🏛 **UZEX AI haqida:**\n\n"
+                    "Men O‘zbekiston tovar-xomashyo birjasi (UZEX) savdo ma'lumotlari bo‘yicha mustaqil analitik AI-yordamchisiman.\n\n"
+                    "💡 **Asosiy imkoniyatlarim:**\n"
+                    "• 2022–2026 yillardagi birja ma'lumotlar to‘plamini tahlil qilish;\n"
                     "• Tovar narxlari dinamikasi va o‘rtacha tortilgan narxlarni hisoblash;\n"
-                    "• Eng yirik tovarlar, sotuvchilar, xaridorlar va brokerlar reytingini shakllantirish;\n"
-                    "• Bitim va shartnoma raqami bo‘yicha to‘liq tafsilotlarni ko‘rsatish.\n\n"
-                    "📌 Namunaviy savollar uchun **/help** buyrug‘idan foydalanishingiz mumkin."
+                    "• Tovar, sotuvchi, xaridor va brokerlar reytinglarini ko‘rsatish;\n"
+                    "• Bitim va kontrakt raqamlari bo‘yicha ma'lumot berish.\n\n"
+                    "📌 Namunaviy savollar uchun: **/help**"
                 )
             else:
                 return (
-                    "🏛 **Об АО «Узбекская республиканская товарно-сырьевая биржа» (UZEX):**\n\n"
-                    "UZEX (УзРТСБ) — крупнейшая биржевая торговая площадка в Центральной Азии. "
-                    "Она обеспечивает прозрачные конкурентные торги стратегическими сырьевыми товарами: "
-                    "нефтепродуктами (бензин, дизель), цементом, зерном, металлами, сахаром и минеральными удобрениями.\n\n"
+                    "🏛 **О проекте UZEX AI:**\n\n"
+                    "Я — независимый аналитический AI-ассистент по данным торгов Узбекской республиканской товарно-сырьевой биржи (UZEX).\n\n"
                     "💡 **Что умеет аналитический помощник UZEX AI:**\n"
-                    "• Предоставлять точную статистику торгов за 2022–2026 годы (более 500 000 реальных сделок);\n"
-                    "• Рассчитывать средневзвешенные, минимальные и максимальные цены ключевых товаров;\n"
-                    "• Строить рейтинги ведущих товаров по обороту, активных брокеров и участников торгов;\n"
-                    "• Находить полные реквизиты сделок и спецификаций контрактов по их номерам.\n\n"
+                    "• Анализировать подготовленный массив данных торгов за 2022–2026 годы;\n"
+                    "• Рассчитывать средневзвешенные, минимальные и максимальные цены товаров;\n"
+                    "• Формировать рейтинги товаров, участников торгов и брокеров;\n"
+                    "• Находить параметры конкретных сделок и контрактов по номерам.\n\n"
                     "📌 Примеры запросов доступны по команде **/help**."
                 )
 
@@ -429,10 +425,11 @@ class ResponseBuilder:
         # 1. GENERAL_CHAT prompt
         if params.intent == IntentType.GENERAL_CHAT:
             system_prompt = (
-                f"You are the conversational AI assistant for UZEX (Uzbek Commodity Exchange).\n"
-                f"Language: Respond naturally and politely in {lang_name}.\n"
-                f"Tone: Helpful, warm, professional, engaging. Avoid rigid canned answers.\n"
-                f"Do NOT fabricate trade statistics in small talk. Offer help with commodity trading analytics if relevant."
+                f"You are UZEX AI, an independent analytical AI assistant for Uzbek Commodity Exchange trade data.\n"
+                f"Language: Respond naturally and concisely in {lang_name}.\n"
+                f"Tone: Friendly, concise (1-2 sentences), natural. Do NOT use rigid templates or bullet points.\n"
+                f"Never claim to be an official exchange representative or official spokesperson.\n"
+                f"Offer help with commodity dataset analytics if relevant."
             )
             chat_messages = list(history or [])
             chat_messages.append({"role": "user", "content": user_question})
@@ -441,7 +438,7 @@ class ResponseBuilder:
                     messages=chat_messages,
                     system_instruction=system_prompt,
                     temperature=0.7,
-                    timeout_seconds=5
+                    timeout_seconds=15
                 )
                 if chat_resp and len(chat_resp.strip()) > 3:
                     return chat_resp.strip()
@@ -452,11 +449,10 @@ class ResponseBuilder:
         # 2. GENERAL_KNOWLEDGE prompt
         if params.intent == IntentType.GENERAL_KNOWLEDGE:
             system_prompt = (
-                f"You are an economics and commodity markets expert assistant for UZEX AI.\n"
-                f"Language: Explain clearly and educationally in {lang_name}.\n"
+                f"You are an economics and commodity markets expert assistant for UZEX AI (independent analytics project).\n"
+                f"Language: Explain clearly, concisely, and educationally in {lang_name} (2-4 sentences).\n"
                 f"Instruction: Explain the requested economic/market concept accurately. "
-                f"Clearly state this is general financial/market knowledge, and not specific internal rules of UZEX. "
-                f"Invite the user to explore real trading data on UZEX if they want."
+                f"Clarify that this is general financial terminology, not internal rules of UZEX."
             )
             chat_messages = list(history or [])
             chat_messages.append({"role": "user", "content": user_question})
@@ -465,7 +461,7 @@ class ResponseBuilder:
                     messages=chat_messages,
                     system_instruction=system_prompt,
                     temperature=0.4,
-                    timeout_seconds=5
+                    timeout_seconds=15
                 )
                 if chat_resp and len(chat_resp.strip()) > 10:
                     return chat_resp.strip()
@@ -473,22 +469,21 @@ class ResponseBuilder:
                 logger.warning(f"Gemini general knowledge failed: {e}")
             return deterministic_text
 
-        # 3. EXCHANGE_INFO prompt
+        # 3. EXCHANGE_INFO prompt (Persona & Capabilities)
         if params.intent == IntentType.EXCHANGE_INFO:
             verified_uzex_facts = (
-                "Verified Context about UZEX:\n"
-                "- Full Name: Uzbek Commodity Exchange (УзРТСБ / O'zbekiston tovar-xomashyo birjasi).\n"
-                "- Nature: Largest modern commodity exchange platform in Central Asia.\n"
-                "- Key spot commodities traded: petroleum products (gasoline, diesel), cement, wheat/grain, copper cathodes, cotton fiber, mineral fertilizers, sugar, ferrous and non-ferrous metals.\n"
-                "- Trading mechanism: Open, electronic, competitive spot bidding.\n"
-                "- Assistant capabilities: Provides real trade statistics for 2022-2026 (>500,000 real deals), calculates weighted average prices, volume and turnover rankings, and inspects deal/contract specifications.\n"
-                "- Official portal: uzex.uz."
+                "Context about UZEX AI:\n"
+                "- Identity: Independent analytical AI assistant for UZEX (Uzbek Commodity Exchange) trading data.\n"
+                "- NOT an official representative or spokesperson of the exchange.\n"
+                "- Dataset: Project commodity dataset covering 2022-2026.\n"
+                "- Key capabilities: Analyzing prices, trading volumes, turnover, rankings of goods/participants/brokers, and inspecting contract/deal details.\n"
+                "- Commodities: Gasoline, diesel, cement, grain, copper, cotton, fertilizers, sugar, metals."
             )
             system_prompt = (
-                f"You are the official conversational assistant of the Uzbek Commodity Exchange (UZEX).\n"
-                f"Language: Answer accurately and informatively in {lang_name}.\n"
-                f"ZERO HALLUCINATION POLICY: Base your facts strictly on the verified context below. "
-                f"If asked about internal procedures, regulations, or historical facts not present in the context, honestly state that official information can be verified on uzex.uz or with UZEX support.\n\n"
+                f"You are UZEX AI, an independent analytical assistant for commodity exchange data.\n"
+                f"Language: Answer in {lang_name}.\n"
+                f"Style: Natural, concise (2-4 sentences or short readable paragraphs). Avoid overwhelming walls of text and static bullet checklists.\n"
+                f"Important: Do NOT claim to be the official exchange or official service. You are an independent analytics project based on 2022-2026 dataset.\n\n"
                 f"{verified_uzex_facts}"
             )
             chat_messages = list(history or [])
@@ -497,8 +492,8 @@ class ResponseBuilder:
                 chat_resp = await gemini_client.generate_chat_response(
                     messages=chat_messages,
                     system_instruction=system_prompt,
-                    temperature=0.3,
-                    timeout_seconds=5
+                    temperature=0.5,
+                    timeout_seconds=15
                 )
                 if chat_resp and len(chat_resp.strip()) > 10:
                     return chat_resp.strip()
@@ -509,11 +504,11 @@ class ResponseBuilder:
         # 4. UNKNOWN prompt
         if params.intent == IntentType.UNKNOWN:
             system_prompt = (
-                f"You are the intelligent assistant for UZEX commodity trading analytics.\n"
-                f"Language: Respond politely and concisely in {lang_name}.\n"
-                f"Situation: The user query is ambiguous, contains nonexistent goods, or does not specify enough parameters to run database analytics.\n"
-                f"Action: Politely ask the user to clarify or rephrase the question. Suggest specifying commodity name (e.g. бензин, цемент, пшеница), trading year (2022-2026), or deal ID. Mention that command /help lists sample queries.\n"
-                f"CRITICAL: Do NOT invent trade volumes or prices."
+                f"You are UZEX AI, an independent assistant for commodity analytics.\n"
+                f"Language: Respond politely and concisely in {lang_name} (1-2 sentences).\n"
+                f"Situation: The query lacks specific parameters (commodity, year 2022-2026, deal ID).\n"
+                f"Action: Ask the user to clarify what commodity or year they want to analyze. Mention command /help for examples.\n"
+                f"ZERO HALLUCINATION: Do NOT invent trade numbers."
             )
             chat_messages = list(history or [])
             chat_messages.append({"role": "user", "content": user_question})
@@ -522,7 +517,7 @@ class ResponseBuilder:
                     messages=chat_messages,
                     system_instruction=system_prompt,
                     temperature=0.4,
-                    timeout_seconds=5
+                    timeout_seconds=15
                 )
                 if chat_resp and len(chat_resp.strip()) > 10:
                     return chat_resp.strip()
@@ -532,20 +527,20 @@ class ResponseBuilder:
 
         # 5. ANALYTICS & MIXED prompt (Strict Zero-Hallucination Presentation)
         system_prompt = (
-            f"You are the official bilingual AI assistant for the Uzbek Commodity Exchange (UZEX).\n"
-            f"Language: Present the analytical findings in {lang_name}.\n"
-            f"ZERO HALLUCINATION POLICY (STRICT ENFORCEMENT):\n"
-            f"1. You MUST NEVER invent, hallucinate, extrapolate, or approximate any trade numbers, prices, volumes, dates, participants, or market trends.\n"
-            f"2. You MUST use ONLY the verified facts provided below. Do not add outside speculation, economic guesses, or fabricated reasons.\n"
-            f"3. If the verified facts indicate no data was found or requested metrics are unavailable, state clearly that confirmed data is unavailable in the UZEX registry.\n"
-            f"4. Never replace the user's specific inquiry with unrelated general statistics.\n"
-            f"5. Maintain a professional, articulate tone in {lang_name}."
+            f"You are UZEX AI, an independent analytical assistant for Uzbek commodity trading data.\n"
+            f"Language: Present the findings in {lang_name}.\n"
+            f"ZERO HALLUCINATION POLICY (STRICT):\n"
+            f"1. You MUST NEVER invent, extrapolate, or alter any numbers, prices, volumes, dates, or participants.\n"
+            f"2. Use ONLY the verified data provided below. Do not add outside guesses or speculative reasons.\n"
+            f"3. Do NOT claim the data is official exchange statistics; refer to it as the project dataset.\n"
+            f"4. If no data was found, state clearly that it is absent in the dataset.\n"
+            f"5. Maintain a professional, clear tone."
         )
 
         user_prompt = (
             f"User Question: {user_question}\n\n"
-            f"Verified Facts / Query Results:\n{deterministic_text}\n\n"
-            f"Provide a natural, well-formatted response in {lang_name} strictly based on the verified facts above."
+            f"Verified SQL Query Results:\n{deterministic_text}\n\n"
+            f"Present this result naturally and concisely in {lang_name} adhering strictly to the verified data above."
         )
 
         chat_messages = list(history or [])
@@ -556,7 +551,7 @@ class ResponseBuilder:
                 messages=chat_messages,
                 system_instruction=system_prompt,
                 temperature=0.1,
-                timeout_seconds=5
+                timeout_seconds=15
             )
             if gemini_response and len(gemini_response.strip()) > 15:
                 return gemini_response.strip()

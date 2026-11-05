@@ -42,7 +42,7 @@ class GeminiClient:
         messages: List[Dict[str, str]],
         system_instruction: Optional[str] = None,
         temperature: Optional[float] = None,
-        timeout_seconds: int = 8,
+        timeout_seconds: int = 15,
     ) -> Optional[str]:
         """
         Generates chat completion with full conversation history using google-genai SDK.
@@ -101,7 +101,7 @@ class GeminiClient:
         prompt: str,
         system_instruction: Optional[str] = None,
         temperature: Optional[float] = None,
-        timeout_seconds: int = 8,
+        timeout_seconds: int = 15,
     ) -> Optional[str]:
         """Generates text asynchronously using google-genai."""
         if not self.is_configured():

@@ -81,12 +81,12 @@ class AgentOrchestrator:
         # Step 3: Query Execution (Deterministic)
         result: QueryResult = QueryExecutor.execute_params(params)
 
-        # Step 4: Retrieve conversation history for context if user_id is provided
+        # Step 4: Retrieve conversation history for context if user_id is provided (limited to last 4 turns for token efficiency)
         history = []
         if user_id:
             try:
                 from src.bot.user_preferences import user_preferences_repo
-                history = user_preferences_repo.get_history(user_id=user_id, limit=6)
+                history = user_preferences_repo.get_history(user_id=user_id, limit=4)
             except Exception as e:
                 logger.debug(f"Could not load conversation history: {e}")
 

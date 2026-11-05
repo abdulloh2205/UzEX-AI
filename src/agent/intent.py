@@ -10,36 +10,18 @@ from src.query_engine.models import IntentType, QueryParams, StatusPolicy, Volum
 logger = logging.getLogger(__name__)
 
 INTENT_EXTRACTION_PROMPT = """
-You are an expert AI intent router and parser for the UZEX (Uzbek Commodity Exchange) conversational assistant.
-Analyze the user's message in Uzbek or Russian and classify it into one of the following domains:
+You are an expert AI intent router for UZEX AI (an independent analytics assistant).
+Analyze the user message in Uzbek or Russian and classify into JSON:
 
-1. "general_chat": Greetings, gratitude, saying goodbye, small talk, chit-chat ("Привет", "Salom", "Rahmat", "Спасибо", "Как дела?", "Xayr").
-2. "general_knowledge": Broad questions about economics, trade, finance, trading terms NOT specific to UZEX ("Что такое спот?", "Инкотермс nima?", "Фьючерс ва форвард фарқи").
-3. "exchange_info": Questions about UZEX exchange itself, its structure, commodities, rules, or bot capabilities ("UzEx o'zi nima?", "Что такое UZEX?", "Что ты умеешь?", "Qanday tovarlar sotiladi?").
-4. "aggregation" | "ranking" | "price_inquiry" | "deal_lookup" | "contract_lookup" | "participant_lookup" | "broker_lookup" | "usd_rate_lookup" | "status_breakdown": Analytical queries about real trade data (2022-01-03 to 2026-10-30).
-5. "mixed": Combined conceptual explanation and analytical query.
-6. "out_of_scope": Specific queries outside 2022-2026 dataset boundary.
-7. "unknown": Ambiguous, completely unrecognizable query or nonexistent items.
+Intents:
+- "general_chat": Greetings, gratitude, farewell, small talk ("Привет", "Salom", "Как дела?").
+- "general_knowledge": Economic/trading concepts without specific UZEX entity ("Что такое спот?", "Инкотермс nima?").
+- "exchange_info": Bot capabilities, identity, or exchange background ("Кто ты?", "Чем занимаешься?", "Что ты умеешь?", "Что такое UZEX?").
+- "aggregation" | "ranking" | "price_inquiry" | "deal_lookup" | "contract_lookup" | "participant_lookup" | "broker_lookup" | "status_breakdown": Analytical queries about 2022-2026 dataset.
+- "out_of_scope": Specific queries outside 2022-2026 dataset boundary.
+- "unknown": Ambiguous query.
 
-JSON Schema:
-{
-  "intent": "general_chat" | "general_knowledge" | "exchange_info" | "aggregation" | "ranking" | "price_inquiry" | "deal_lookup" | "contract_lookup" | "participant_lookup" | "broker_lookup" | "usd_rate_lookup" | "status_breakdown" | "mixed" | "out_of_scope" | "unknown",
-  "product": string or null (in Russian canonical form, e.g. "бензин", "цемент", "пшеница", "катод медный"),
-  "year": integer or null (e.g. 2022, 2023, 2024, 2025, 2026),
-  "date_from": "YYYY-MM-DD" or null,
-  "date_to": "YYYY-MM-DD" or null,
-  "inn": string or null (9-digit INN),
-  "broker_code": string or null (e.g. "BK001"),
-  "deal_id": integer or null,
-  "contract_id": string or null,
-  "deal_status": string or null,
-  "contract_type": "Внутренний" | "Экспортный" | null,
-  "metric": "amount_uzs" | "volume" | "count" | "price",
-  "ranking_entity": "product" | "seller" | "buyer" | "broker" | "region" | null,
-  "limit": integer (default 5)
-}
-
-Output ONLY valid JSON. No conversational fluff or markdown.
+Output ONLY valid JSON with fields: intent (string), product (canonical Russian or null), year (int or null), inn (string or null), deal_id (int or null), contract_id (string or null).
 """
 
 
@@ -266,12 +248,14 @@ class IntentParser:
                 language=lang
             )
 
-        # 3. Exchange Info / FAQ / Help / Capabilities
+        # 3. Exchange Info / Capabilities / Persona ("Кто ты?", "Чем занимаешься?", "Что умеешь?")
         exchange_info_keywords = [
             "uzex", "узекс", "биржа", "birja", "o'zi nima", "ozi nima", "nima u", "nima bu",
             "что такое узекс", "что такое биржа", "что это за биржа", "о бирже", "расскажи о",
             "как работает", "qanday ishlaydi", "vazifasi", "haqida ma'lumot", "haqida malumot",
-            "что ты умеешь", "nima qila olasan", "imkoniyat", "yordam", "помощь", "справка", "imkoniyatlaring"
+            "что ты умеешь", "чем ты занимаешься", "чем занимаешься", "кто ты", "кто вы",
+            "что делаешь", "ты кто", "сен кимсан", "sen kimsan", "kim siz", "nima ish qilasan",
+            "nima qila olasan", "nima qilasiz", "imkoniyat", "yordam", "помощь", "справка", "imkoniyatlaring"
         ]
         is_exchange_info = any(w in lower for w in exchange_info_keywords)
         if is_exchange_info and not (year or product or inn or broker_code or deal_id or contract_id):
