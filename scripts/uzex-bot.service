@@ -1,0 +1,27 @@
+[Unit]
+Description=UZEX AI Telegram Bot Service
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/UzEX-AI
+ExecStart=/opt/UzEX-AI/.venv/bin/python -m src.bot.main
+Restart=always
+RestartSec=5
+EnvironmentFile=/opt/UzEX-AI/.env
+
+# Standard output and error logging to systemd journal
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=uzex-bot
+
+# Resource limits and process isolation
+LimitNOFILE=65536
+TimeoutStopSec=20
+KillMode=mixed
+
+[Install]
+WantedBy=multi-user.target
