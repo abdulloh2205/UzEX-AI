@@ -1,3 +1,8 @@
+import os
+from pathlib import Path
+from unittest.mock import patch
+from src.config import Settings
+from src.bot.main import validate_bot_token
 import unittest
 from src.agent.intent import IntentParser
 from src.agent.language import LanguageDetector
@@ -83,3 +88,31 @@ class TestAnalyticalFixes(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestContainerEnvironmentConfig(unittest.TestCase):
+    def test_direct_os_environ_without_dotenv_file(self):
+        """Проверяет, что BOT_TOKEN и GEMINI_API_KEY считываются напрямую из переменных окружения."""
+        test_env = {
+            "BOT_TOKEN": "987654321:ContainerDirectBotToken_ABC123",
+            "GEMINI_API_KEY": "AIzaSyDirectContainerKey_XYZ987",
+            "GEMINI_MODEL": "gemini-2.5-flash",
+            "DATABASE_PATH": "data/processed/uzex.db"
+        }
+        with patch.dict(os.environ, test_env, clear=True):
+            settings_obj = Settings()
+            token = validate_bot_token()
+            self.assertEqual(token, "987654321:ContainerDirectBotToken_ABC123")
+            self.assertEqual(settings_obj.GEMINI_API_KEY, "AIzaSyDirectContainerKey_XYZ987")
+            self.assertEqual(settings_obj.GEMINI_MODEL, "gemini-2.5-flash")
+            self.assertTrue(str(settings_obj.DATABASE_PATH).endswith("uzex.db"))
+
+    def test_absolute_container_database_path(self):
+        """Проверяет корректность разрешения абсолютного пути в Linux-контейнере."""
+        test_env = {
+            "BOT_TOKEN": "987654321:ContainerDirectBotToken_ABC123",
+            "DATABASE_PATH": "/home/container/data/processed/uzex.db"
+        }
+        with patch.dict(os.environ, test_env, clear=True):
+            settings_obj = Settings()
+            self.assertEqual(settings_obj.DATABASE_PATH, Path("/home/container/data/processed/uzex.db"))

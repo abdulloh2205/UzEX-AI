@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import sys
 from typing import Optional
 from aiogram import Bot, Dispatcher
@@ -22,12 +23,15 @@ logger = logging.getLogger("uzex_bot")
 
 def validate_bot_token(token: Optional[str] = None) -> str:
     """Validates that BOT_TOKEN exists and is not a placeholder."""
-    actual_token = token if token is not None else settings.BOT_TOKEN
-    if not actual_token or actual_token.strip() == "" or "your_telegram_bot_token_here" in actual_token:
-        error_msg = "Telegram BOT_TOKEN is not configured in .env file. Please provide a valid bot token."
+    actual_token = (token if token is not None else (os.getenv("BOT_TOKEN") or settings.BOT_TOKEN or "")).strip()
+    if not actual_token or actual_token == "" or "your_telegram_bot_token_here" in actual_token:
+        error_msg = (
+            "Telegram BOT_TOKEN is not configured. "
+            "Please provide a valid BOT_TOKEN via environment variable or .env file."
+        )
         logger.error(error_msg)
         raise ValueError(error_msg)
-    return actual_token.strip()
+    return actual_token
 
 
 def create_bot(token: Optional[str] = None) -> Bot:
