@@ -116,3 +116,64 @@ class TestContainerEnvironmentConfig(unittest.TestCase):
         with patch.dict(os.environ, test_env, clear=True):
             settings_obj = Settings()
             self.assertEqual(settings_obj.DATABASE_PATH, Path("/home/container/data/processed/uzex.db"))
+
+
+class TestRoutingAndZeroHallucination(unittest.TestCase):
+    def test_uzex_general_question_uzbek(self):
+        """«UzEx o'zi nima?» должен возвращать информацию о бирже БЕЗ выполнения SQL к сделкам."""
+        resp = AgentOrchestrator.process_question_sync("UzEx o'zi nima?")
+        self.assertEqual(resp.language, "uz")
+        self.assertIsNone(resp.sql_executed)
+        self.assertIn("O‘zbekiston tovar-xomashyo birjasi", resp.text)
+        self.assertNotIn("466 281", resp.text)
+
+    def test_uzex_general_question_russian(self):
+        """«Что такое UZEX?» должен возвращать информацию о бирже БЕЗ выполнения SQL к сделкам."""
+        resp = AgentOrchestrator.process_question_sync("Что такое UZEX?")
+        self.assertEqual(resp.language, "ru")
+        self.assertIsNone(resp.sql_executed)
+        self.assertIn("Узбекская республиканская товарно-сырьевая биржа", resp.text)
+        self.assertNotIn("466 281", resp.text)
+
+    def test_greeting_russian(self):
+        """«Привет» не должен запускать SQL ко всей базе сделок."""
+        resp = AgentOrchestrator.process_question_sync("Привет")
+        self.assertEqual(resp.language, "ru")
+        self.assertIsNone(resp.sql_executed)
+        self.assertIn("UZEX", resp.text)
+
+    def test_capabilities_question(self):
+        """«Что ты умеешь?» должен возвращать перечень возможностей аналитического помощника."""
+        resp = AgentOrchestrator.process_question_sync("Что ты умеешь?")
+        self.assertEqual(resp.language, "ru")
+        self.assertIsNone(resp.sql_executed)
+        self.assertIn("Что умеет аналитический помощник", resp.text)
+
+    def test_analytical_deals_count_2025(self):
+        """«Сколько сделок было в 2025 году?» должен запускать SQL и возвращать точные данные."""
+        resp = AgentOrchestrator.process_question_sync("Сколько сделок было в 2025 году?")
+        self.assertEqual(resp.language, "ru")
+        self.assertIsNotNone(resp.sql_executed)
+        self.assertIn("107 678", resp.text)
+
+    def test_analytical_gasoline_price(self):
+        """«Какая средняя цена бензина?» должен запускать SQL с раздельными единицами измерения."""
+        resp = AgentOrchestrator.process_question_sync("Какая средняя цена бензина?")
+        self.assertEqual(resp.language, "ru")
+        self.assertIsNotNone(resp.sql_executed)
+        self.assertIn("литр", resp.text)
+        self.assertIn("тонна", resp.text)
+
+    def test_unknown_query_safety(self):
+        """Нераспознанный запрос не должен выполнять SQL ко всей базе, а просить уточнить вопрос."""
+        resp = AgentOrchestrator.process_question_sync("какой-то бессмысленный неизвестный текст")
+        self.assertIsNone(resp.sql_executed)
+        self.assertIn("Не удалось однозначно определить", resp.text)
+        self.assertNotIn("466 281", resp.text)
+
+    def test_zero_hallucination_nonexistent_data(self):
+        """Запрос по несуществующему товару не выдумывает цифры и просит уточнить или сообщает об отсутствии."""
+        resp = AgentOrchestrator.process_question_sync("Какова цена лунного грунта в 2025 году?")
+        self.assertIsNone(resp.sql_executed)
+        self.assertIn("Не удалось однозначно определить", resp.text)
+        self.assertFalse(resp.has_data)

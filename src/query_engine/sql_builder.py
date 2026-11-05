@@ -200,6 +200,10 @@ class SQLBuilder:
             """
             return sql, sql_params
 
+        elif intent in {IntentType.EXCHANGE_INFO, IntentType.UNKNOWN, IntentType.OUT_OF_SCOPE}:
+            # Non-analytical or informational requests do not execute SQL queries
+            return "", []
+
         elif intent == IntentType.PRICE_INQUIRY:
             where_sql, sql_params = cls.build_where_clause(params)
             sql = f"""

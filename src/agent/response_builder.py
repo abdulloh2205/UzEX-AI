@@ -34,7 +34,51 @@ class ResponseBuilder:
                 else "Запрошенные данные находятся за пределами диапазона или охвата датасета UZEX."
             )
 
-        # 2. No data found
+        # 2. General Exchange Information / FAQ / Capabilities
+        if params.intent == IntentType.EXCHANGE_INFO:
+            if lang == "uz":
+                return (
+                    "🏛 **UZEX (O‘zbekiston tovar-xomashyo birjasi) haqida:**\n\n"
+                    "O‘zbekiston tovar-xomashyo birjasi (UZEX) — Markaziy Osiyodagi eng yirik zamonaviy savdo maydonchasi bo‘lib, "
+                    "paxta, g‘alla, metall, sement, neft mahsulotlari (benzin, dizel) va boshqa strategik tovarlar "
+                    "bo‘yicha ochiq birja savdolarini tashkil etadi.\n\n"
+                    "💡 **Men nima qila olaman?**\n"
+                    "• 2022–2026 yillardagi 500 000+ birja bitimlari bo‘yicha aniq ma'lumot berish;\n"
+                    "• Tovar narxlari dinamikasi va o‘rtacha tortilgan narxlarni hisoblash;\n"
+                    "• Eng yirik tovarlar, sotuvchilar, xaridorlar va brokerlar reytingini shakllantirish;\n"
+                    "• Bitim va shartnoma raqami bo‘yicha to‘liq tafsilotlarni ko‘rsatish.\n\n"
+                    "📌 Namunaviy savollar uchun **/help** buyrug‘idan foydalanishingiz mumkin."
+                )
+            else:
+                return (
+                    "🏛 **Об АО «Узбекская республиканская товарно-сырьевая биржа» (UZEX):**\n\n"
+                    "UZEX (УзРТСБ) — крупнейшая биржевая торговая площадка в Центральной Азии. "
+                    "Она обеспечивает прозрачные конкурентные торги стратегическими сырьевыми товарами: "
+                    "нефтепродуктами (бензин, дизель), цементом, зерном, металлами, сахаром и минеральными удобрениями.\n\n"
+                    "💡 **Что умеет аналитический помощник UZEX AI:**\n"
+                    "• Предоставлять точную статистику торгов за 2022–2026 годы (более 500 000 реальных сделок);\n"
+                    "• Рассчитывать средневзвешенные, минимальные и максимальные цены ключевых товаров;\n"
+                    "• Строить рейтинги ведущих товаров по обороту, активных брокеров и участников торгов;\n"
+                    "• Находить полные реквизиты сделок и спецификаций контрактов по их номерам.\n\n"
+                    "📌 Примеры запросов доступны по команде **/help**."
+                )
+
+        # 3. Unknown / Ambiguous query (Safety fallback — NO SQL aggregation on entire dataset!)
+        if params.intent == IntentType.UNKNOWN:
+            if lang == "uz":
+                return (
+                    "❓ **So‘rovingiz bo‘yicha aniq ma'lumot topilmadi.**\n\n"
+                    "Iltimos, birja savdolari bo‘yicha savolingizni aniqlashtiring (masalan, tovar nomi, yil yoki bitim raqamini ko‘rsating).\n\n"
+                    "📌 Savol namunalari bilan tanishish uchun **/help** buyrug‘idan foydalaning."
+                )
+            else:
+                return (
+                    "❓ **Не удалось однозначно определить параметры вашего вопроса.**\n\n"
+                    "Пожалуйста, уточните запрос (например, укажите товар, интересующий год или номер сделки).\n\n"
+                    "📌 Примеры корректных запросов доступны по команде **/help**."
+                )
+
+        # 4. No data found
         if not result.has_data or (result.total_count == 0 and not result.rows):
             entity_desc = params.product or params.inn or params.broker_code or ""
             year_desc = f" ({params.year}-yil)" if params.year and lang == "uz" else (f" (за {params.year} год)" if params.year else "")
@@ -352,26 +396,26 @@ class ResponseBuilder:
         if not use_llm or not gemini_client.is_configured():
             return deterministic_text
 
-        # If it's out of bounds or simple single stat, deterministic text is already crisp and exact
-        if result.is_out_of_dataset:
+        # If it's out of bounds, unknown, or pure deterministic fact, deterministic text is already exact
+        if result.is_out_of_dataset or params.intent in {IntentType.UNKNOWN, IntentType.OUT_OF_SCOPE}:
             return deterministic_text
 
+        # Strict Zero-Hallucination Policy Prompt
         system_prompt = (
             f"You are the official bilingual AI assistant for the Uzbek Commodity Exchange (UZEX).\n"
             f"The user asked a question in {'Uzbek' if lang == 'uz' else 'Russian'}.\n"
-            f"You are provided with deterministically calculated facts from the database.\n"
-            f"CRITICAL ANTI-HALLUCINATION RULES:\n"
-            f"1. You MUST use the exact numbers, amounts, and units provided in the facts.\n"
-            f"2. Never calculate, estimate, or invent new numbers.\n"
-            f"3. Respond clearly and politely in {'Uzbek' if lang == 'uz' else 'Russian'}.\n"
-            f"4. Format prices and volumes cleanly with markdown bolding.\n"
-            f"5. If no data exists, clearly state that no records match the criteria in the UZEX dataset."
+            f"ZERO HALLUCINATION POLICY (STRICT ENFORCEMENT):\n"
+            f"1. You MUST NEVER invent, hallucinate, extrapolate, or approximate any trade numbers, prices, volumes, dates, participants, or market trends.\n"
+            f"2. You MUST use ONLY the verified facts provided below. Do not add outside speculation, economic guesses, or fabricated reasons.\n"
+            f"3. If the verified facts indicate no data was found or requested metrics are unavailable, state clearly that confirmed data is unavailable in the UZEX registry.\n"
+            f"4. Never replace the user's specific inquiry with unrelated general statistics.\n"
+            f"5. Maintain a professional, polite, concise tone in {'Uzbek' if lang == 'uz' else 'Russian'}."
         )
 
         user_prompt = (
             f"User Question: {user_question}\n\n"
-            f"Verified Database Facts:\n{deterministic_text}\n\n"
-            f"Write a concise, polished response in {'Uzbek' if lang == 'uz' else 'Russian'} conveying these facts."
+            f"Verified Facts / Context:\n{deterministic_text}\n\n"
+            f"Respond clearly and concisely in {'Uzbek' if lang == 'uz' else 'Russian'} strictly based on the verified facts above."
         )
 
         try:

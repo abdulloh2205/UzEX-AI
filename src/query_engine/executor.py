@@ -66,6 +66,15 @@ class QueryExecutor:
                 out_of_dataset_reason=out_reason
             )
 
+        if params.intent in {IntentType.EXCHANGE_INFO, IntentType.UNKNOWN, IntentType.OUT_OF_SCOPE}:
+            # Do not run SQL queries for general conversational questions or unknown inputs
+            return QueryResult(
+                success=True,
+                has_data=False,
+                sql_executed=None,
+                execution_time_ms=0.0
+            )
+
         sql, sql_params = SQLBuilder.build_query(params)
         return cls._execute_sql(sql, tuple(sql_params), params)
 

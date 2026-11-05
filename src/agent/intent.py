@@ -16,7 +16,7 @@ The dataset covers deals from 2022-01-03 to 2026-10-30.
 
 JSON Schema:
 {
-  "intent": "aggregation" | "ranking" | "price_inquiry" | "deal_lookup" | "contract_lookup" | "participant_lookup" | "broker_lookup" | "usd_rate_lookup" | "status_breakdown" | "out_of_scope" | "unknown",
+  "intent": "aggregation" | "ranking" | "price_inquiry" | "deal_lookup" | "contract_lookup" | "participant_lookup" | "broker_lookup" | "usd_rate_lookup" | "status_breakdown" | "exchange_info" | "out_of_scope" | "unknown",
   "product": string or null (in Russian canonical form, e.g. "бензин", "цемент", "пшеница", "катод медный"),
   "year": integer or null (e.g. 2022, 2023, 2024, 2025, 2026),
   "date_from": "YYYY-MM-DD" or null,
@@ -144,6 +144,14 @@ class IntentParser:
         # Price inquiry
         price_keywords = ["цена", "цены", "цену", "стоимость", "narx", "narxi", "narxlari", "narxlar"]
         if any(w in lower for w in price_keywords) or ("o'rtacha" in lower and product):
+            # If price inquiry mentions price keywords, but no valid commodity could be linked:
+            # mark as unknown/unresolved to prevent unbounded price queries across the whole exchange
+            if not product and not any(w in lower for w in ["всех товаров", "всех продуктов", "barcha tovarlar"]):
+                return QueryParams(
+                    intent=IntentType.UNKNOWN,
+                    language=lang
+                )
+
             return QueryParams(
                 intent=IntentType.PRICE_INQUIRY,
                 product=product,
@@ -225,17 +233,45 @@ class IntentParser:
                 language=lang
             )
 
-        # Default: Aggregation
+        # Exchange Info / FAQ / Greetings / Help
+        exchange_info_keywords = [
+            "uzex", "узекс", "биржа", "birja", "o'zi nima", "ozi nima", "nima u", "nima bu",
+            "что такое", "что это", "о бирже", "расскажи о", "как работает", "qanday ishlaydi",
+            "vazifasi", "haqida ma'lumot", "haqida malumot", "привет", "здравствуй", "salom",
+            "assalomu alaykum", "assalom", "что ты умеешь", "nima qila olasan", "imkoniyat",
+            "yordam", "помощь", "справка", "imkoniyatlaring"
+        ]
+        is_exchange_info = any(w in lower for w in exchange_info_keywords)
+        if is_exchange_info and not (year or product or inn or broker_code or deal_id or contract_id):
+            return QueryParams(
+                intent=IntentType.EXCHANGE_INFO,
+                language=lang
+            )
+
+        # Explicit Aggregation markers (only if year/product/date/status or explicit aggregation tokens are present)
+        aggregation_keywords = [
+            "объем торгов", "объём торгов", "оборот", "сколько сделок", "всего сделок", "сумма торгов",
+            "savdo hajmi", "aylanma", "nechta bitim", "qancha bitim", "savdo summasi", "umumiy savdo"
+        ]
+        has_agg_marker = any(w in lower for w in aggregation_keywords)
+
+        if product or year or date or status or has_agg_marker:
+            return QueryParams(
+                intent=IntentType.AGGREGATION,
+                product=product,
+                product_raw=raw_prod,
+                year=year,
+                date_from=date,
+                deal_status=status,
+                status_policy=policy,
+                volume_type=vol_type,
+                contract_type=contract_type,
+                language=lang
+            )
+
+        # Unknown / Unrecognized query — do NOT run SQL on the entire database
         return QueryParams(
-            intent=IntentType.AGGREGATION,
-            product=product,
-            product_raw=raw_prod,
-            year=year,
-            date_from=date,
-            deal_status=status,
-            status_policy=policy,
-            volume_type=vol_type,
-            contract_type=contract_type,
+            intent=IntentType.UNKNOWN,
             language=lang
         )
 
@@ -256,6 +292,7 @@ class IntentParser:
             IntentType.PRICE_INQUIRY,
             IntentType.PARTICIPANT_LOOKUP,
             IntentType.BROKER_LOOKUP,
+            IntentType.EXCHANGE_INFO,
         }:
             return params
 
@@ -273,11 +310,11 @@ class IntentParser:
                 )
                 if response:
                     data = json.loads(response)
-                    intent_str = data.get("intent", "aggregation")
+                    intent_str = data.get("intent", "unknown")
                     try:
                         intent_enum = IntentType(intent_str)
                     except ValueError:
-                        intent_enum = IntentType.AGGREGATION
+                        intent_enum = IntentType.UNKNOWN
 
                     return QueryParams(
                         intent=intent_enum,
